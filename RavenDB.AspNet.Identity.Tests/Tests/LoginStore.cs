@@ -29,7 +29,8 @@ namespace RavenDB.AspNet.Identity.Tests
                 using (var session = docStore.OpenSession())
                 {
                     var ustore = new UserStore<SimpleAppUser>(session);
-                    ustore.UseCustomId = false; 
+                    ustore.UseCustomId = false;
+                    ustore.FindByIndex = true;
                     using (var mgr = new UserManager<SimpleAppUser>(ustore))
                     {
                         IdentityResult result = mgr.Create(user, password);

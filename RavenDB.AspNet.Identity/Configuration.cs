@@ -5,6 +5,13 @@ namespace RavenDB.AspNet.Identity
 {
     public class Configuration : ConfigurationSection
     {
+        [ConfigurationProperty("xmlns")]
+        public string XmlNS
+        {
+            get { return (string)this["xmlns"]; }
+            set { this["xmlns"] = value; }
+        }
+
         [ConfigurationProperty("usecustomid", DefaultValue = true, IsRequired = false)]
         public bool UseCustomId
         {

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNet.Identity;
 using Raven.Client;
 using Raven.Abstractions.Exceptions;
+using Raven.Client.Indexes;
 
 namespace RavenDB.AspNet.Identity
 {
@@ -21,6 +22,7 @@ namespace RavenDB.AspNet.Identity
         private Func<IDocumentSession> getSessionFunc;
         private IDocumentSession _session;
         bool _custom = Settings.UseCustomId;
+        bool _useIndex = Settings.FindByIndex;
 
         private IDocumentSession session
         {
@@ -31,26 +33,34 @@ namespace RavenDB.AspNet.Identity
                     _session = getSessionFunc();
                     if (UseCustomId)
                         _session.Advanced.DocumentStore.Conventions.RegisterIdConvention<IdentityUser>((dbname, commands, user) => "IdentityUsers/" + user.Id);
+                    session.SaveChanges();
                 }
                 return _session;
             }
+        }
+        private IDocumentStore Store
+        {
+            get { return session.Advanced.DocumentStore; }
         }
         public bool UseCustomId
         {
             set { _custom = value; }
             private get { return _custom; }
         }
+        public bool FindByIndex
+        {
+            set { _useIndex = value; }
+            private get { return _useIndex; }
+        }
 
         public UserStore(Func<IDocumentSession> getSession)
         {
             this.getSessionFunc = getSession;
-            Util.TryCreatingIndexesAsync<TUser>(_session.Advanced.DocumentStore);
         }
 
         public UserStore(IDocumentSession session)
         {
             this._session = session;
-            Util.TryCreatingIndexesAsync<TUser>(_session.Advanced.DocumentStore);
         }
 
         public Task CreateAsync(TUser user)
@@ -63,7 +73,7 @@ namespace RavenDB.AspNet.Identity
 
             this.session.Store(user);
 
-            if (!Settings.FindByIndex)
+            if (!FindByIndex)
             {
                 // This model allows us to lookup a user by name in order to get the id
                 var userByName = new IdentityUserByUserName(user.Id, user.UserName);
@@ -97,15 +107,34 @@ namespace RavenDB.AspNet.Identity
 
         public Task<TUser> FindByNameAsync(string userName)
         {
-            if (Settings.FindByIndex)
+            if (FindByIndex)
             {
-                RavenQueryStatistics stats;
-                var user = this.session.Query<TUser>("UserByUserNameIndex")
-                                    .Statistics(out stats)
-                                    .Customize(x => x.WaitForNonStaleResultsAsOfLastWrite())
-                                    .Where(x => x.UserName == userName)
-                                    .FirstOrDefault();
-                return Task.FromResult(user);
+                try
+                {
+                    RavenQueryStatistics stats;
+                    var user = this.session.Query<TUser>("User/ByUserName")
+                                        .Statistics(out stats)
+                                        .Customize(x => x.WaitForNonStaleResultsAsOfLastWrite())
+                                        .Where(x => x.UserName == userName)
+                                        .FirstOrDefault();
+                    return Task.FromResult(user);
+                }
+                catch (Exception)
+                {
+                    session.Advanced.DocumentStore.DatabaseCommands.PutIndex("User/ByUserName",
+                        new IndexDefinitionBuilder<TUser>
+                        {
+                            Map = users => from user in users
+                                           select new
+                                           {
+                                               user.UserName,
+                                               user.Id
+                                           }
+                        });
+                    return Task.FromResult(FindByNameAsync(userName).Result);
+                    //var User = session.Query<TUser>().ToList().Where(x => x.UserName == userName).FirstOrDefault();
+                    //return Task.FromResult(User);
+                }
             }
             else
             {

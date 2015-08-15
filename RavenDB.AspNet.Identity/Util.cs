@@ -54,18 +54,16 @@ namespace RavenDB.AspNet.Identity
         {
             return string.Format("IdentityUserByUserNames/{0}", userName);
         }
-        public static Task TryCreatingIndexesAsync<TUser>(IDocumentStore store)
+        public static void TryCreatingIndexes<TUser>(IDocumentStore store)
             where TUser: IdentityUser
         {
-            try
-            {
-                IndexCreation.CreateIndexes(typeof(UserByUserNameIndex<TUser>).Assembly, store);
-                return Task.FromResult(true);
-            }
-            catch (Exception e)
-            {
-                return Task.FromResult(false);
-            }
+            //try
+            //{
+            //    IndexCreation.CreateIndexes(typeof(User_ByUserName<TUser>).Assembly, store);
+            //}
+            //catch (Exception e)
+            //{
+            //}
         }
     }
 }
